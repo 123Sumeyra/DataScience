@@ -1,0 +1,346 @@
+---
+title: "E-commerce Customer Purchase Intentions"
+output: html_document
+author: "Sümeyra Özuğur"
+---
+170709046
+
+### 1)Import “online_shoppers_intention.csv” dataset
+
+First I should know my data. I checked Column names, row names. I checked what is in my data
+```{r}
+
+#import data
+mydata = read.csv("C:/Users/asus/Desktop/4.Sınıf/DataScience/Midterm/online_shoppers_intention.csv")  
+```
+
+```{r}
+View(mydata)
+```
+
+
+Summary of dataset
+
+```{r}
+summary(mydata)
+```
+
+
+```{r}
+head(mydata)
+#tail(mydata)
+```
+
+
+```{r}
+sum(is.na(mydata))#0 is there na or not
+colnames(mydata)
+#row.names(mydata)
+```
+# Data
+
+ The dataset consists of users 12330 and there are 18 attributes in the dataset.
+10 of them have Numerical features, rest of them have  Categorical features 
+
+### Numerical features:
+Administrative, Informational, Product related, Bounce rate,
+Exit rate,Page value, Special day
+
+### Categorical features:
+VisitorType,Region, Browser, Operating Systems, TrafficType,
+Weekend, Month, Revenue
+
+
+## Required Libraries
+
+```{r, message=FALSE,warning=FALSE}
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(funModeling)
+library(ggbiplot)
+library(tidyverse)  # data manipulation
+library(cluster)    # clustering algorithms
+library(factoextra) # clustering algorithms &
+```
+
+
+I drew some graphs to **better understand** my data
+
+```{r}
+a <-  mydata %>% select(Month)
+
+freq(a)
+
+```
+
+
+ As you see
+data of 27.28% of people were kept in May,
+data of 24.31% of people were kept in Nov,
+data of 15.47% of people were kept in Mar, and so on.
+
+```{r}
+
+mydata$TrafficType<- as.factor(mydata$TrafficType)
+a <-  mydata %>% select( TrafficType)
+
+freq(a)
+
+```
+
+ 31.74% of my data set is type 2,  
+19.88% of my data set is type 1,
+16.64% of my data set is type 3 and so on.
+
+
+
+```{r}
+#VisitorType,Weekend,
+mydata$Weekend<- as.factor(mydata$Weekend)
+a <-  mydata %>% select( Weekend)
+freq(a)
+```
+
+76.74% of the people is accessing the site during the week,
+23.26% of people enter the site on the weekend.
+
+
+
+
+
+
+
+```{r}
+#VisitorTy,Weekend,
+mydata$VisitorType<- as.factor(mydata$VisitorType)
+a <-  mydata %>% select(VisitorType)
+freq(a)
+```
+
+
+The number of Returning_customers in this site is 10551,
+The number of New_Visitor in this site is  1694 and 
+The number of Other entering this site is 85.
+
+```{r, message=FALSE}
+
+
+mydata2 <- select(mydata, -Revenue )
+mydata2 <- transform(mydata2, Month = as.integer(mapvalues(Month,c("Jan" ,"Feb","Mar", "Apr","May","June","Jul","Aug","Sep","Oct","Nov","Dec"), c(1,2,3,4,5,6,7,8,9,10,11,12))),
+                     VisitorType=as.integer(mapvalues(VisitorType,c("Returning_Visitor","New_Visitor","Other"),c(1,2,3))),
+                     Weekend=as.integer(mapvalues(Weekend,c(TRUE,FALSE),c(1,0))),
+TrafficType=as.integer(TrafficType)
+                     )
+#view(mydata2)                     
+cor(mydata2)                     
+             
+```
+
+
+
+In here I converted my data to integers such as (Jan --> 1, Feb-->2) or (True-->1 or False-->0).  And Then I looked at the relationship between them.            
+
+there is a relation **Administrative and Administrative_Duration**(0,60),
+there is a relation **Informational_Duration and Informational**(0,61)
+there is a relation  **ProductRelated_Duration and ProductRelated**(0,86)
+there is a relation  **ExitRates  and BounceRates**(0,91) 
+
+And then 
+ I looked at the variances of some columns of my data
+
+
+```{r}
+ mydata2 %>%
+summarise("Administrative"= var(Administrative,na.rm = TRUE),
+          "Administrative_Duration"=var(Administrative_Duration,na.rm = TRUE),
+          "Informational"=var(Informational,na.rm = TRUE),
+          "Informational_Duration" =var(Informational_Duration,na.rm = TRUE),
+          "ProductRelated" =var(ProductRelated,na.rm = TRUE),
+          "ProductRelated_Duration" =var(ProductRelated_Duration,na.rm = TRUE),
+          "BounceRates" = var(BounceRates,na.rm = TRUE),
+          "ExitRates" =var(ExitRates,na.rm = TRUE),
+          "PageValues" =var(PageValues,na.rm = TRUE),
+          "SpecialDay" =var(SpecialDay,na.rm = TRUE),
+          "OperatingSystems" =var(OperatingSystems,na.rm = TRUE),
+          "Browser" =var(Browser,na.rm = TRUE),
+          "Region" =var(Region,na.rm = TRUE),
+          "TrafficType" =var(TrafficType, na.rm = TRUE)
+          
+          
+          )
+
+
+```
+
+Since "Exit Rates" , "BounceRates" and "SpecialDay" variance is too low, I am removing it from my data.
+By the way, the variance in the Operating System is low because the numbers here refer to an operating system, so I'm not removing it.
+
+
+
+```{r}
+#mydata2
+mydata3 <- select(mydata2,-ExitRates, -SpecialDay, -BounceRates )
+head(mydata3)
+```
+
+Purpose:
+
+I want to do analysis for intention of online shoppers on Weekends of May
+
+
+```{r}
+newData <- mydata3 %>%
+  filter(Weekend == TRUE, Month == 5) %>%
+  select(Administrative, Informational, ProductRelated ,OperatingSystems, Browser, Region, TrafficType, VisitorType)
+  
+
+head(newData)
+```
+```{r}
+boxplot(TrafficType ~ Browser , data = newData)
+# TrafficType Browser e göre grupladım
+```
+
+I grouped Traffic Type  **by Browser**. As you see The heights of 3,4,5 and 10 are close each other.
+medians of 1,2,3,4,5,10  are similar
+
+
+
+# PCA
+
+```{r}
+
+
+sumeyra_pca <- prcomp(newData, center = TRUE, scale. = TRUE)
+summary(sumeyra_pca)
+```
+
+When I look at my PCA analysis results, 
+PC1, PC2, PC3, PC4, PC5 is enough for me. 
+total of variance of them is 0.7557.
+
+
+The variances of my pca analysis are show in the image below.
+
+
+```{r}
+screeplot(sumeyra_pca)
+```
+
+```{r}
+sumeyra <- transform(newData, VisitorType =as.factor(VisitorType))
+
+```
+
+It had to be a factor type in order to do the visulation,
+so I converted "VisitorType" to  factor type
+
+```{r}
+fviz_pca_ind(sumeyra_pca, geom.ind = "point", pointshape = 21, 
+             pointsize = 2, 
+             fill.ind = sumeyra$VisitorType, 
+             col.ind = "black", 
+             palette = "jco", 
+             addEllipses = TRUE,
+             label = "var",
+             col.var = "black",
+             repel = TRUE,
+             legend.title = "Visitor Type") +
+  ggtitle("2D PCA-plot from 8 features dataset") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+As you see ,We cannot make a clear distinction between clusters,
+But I can say "visitor type 3" spread more. By the way Dim1 and Dim2 come from this principal component.
+Reducing to size.
+
+# K-MEANS
+
+First of all, I've run my Kmeans algorithm for a K value I have given.
+
+
+```{r}
+
+modelData <- kmeans(newData, centers = 3, nstart = 25)
+head(modelData)
+
+
+```
+According to this result I have 3 clusters.
+cluster 1 has 201925.7 data
+cluster 2 has 127868.4 data
+cluster 3 has 150880.9 data
+
+
+
+
+
+
+Now let's make a visualization to understand the number of clusters.
+
+
+```{r}
+fviz_cluster(modelData , data =newData)
+```
+
+According to this picture, I guess 3 of classification is a correct choice.
+
+
+```{r}
+#modelData$withinss
+#modelData$tot.withinss
+```
+
+# Elbow
+
+```{r}
+
+set.seed(123)
+
+# function to compute total within-cluster sum of square 
+wss <- function(k) {
+  kmeans(newData, k, nstart = 10 )$tot.withinss
+}
+
+# Compute and plot wss for k = 1 to k = 15
+k.values <- 1:12
+
+# extract wss for 2-15 clusters
+wss_values <- map_dbl(k.values, wss)
+
+plot(k.values, wss_values,
+       type="b", pch = 19, frame = FALSE, 
+       xlab="Number of clusters K",
+       ylab="Total within-clusters sum of squares")
+
+
+```
+ 
+ 
+ 
+ 
+According to the elbow rule, the optimum K should be 4
+
+
+# Hierarchical Clustering
+
+```{r}
+distance <- dist(newData, method="euclidean") 
+hier <- hclust(distance, method="average")
+plot(hier, cex=0.7) 
+rect.hclust(hier, k=4, border="red")
+hier_cut <- cutree(hier, 4)
+
+```
+
+ Another cluster's algorithm is Hierarchical Clustering.
+ There is a visualization  called dendogram,  in Hierarchical Clustering.
+ 
+ I ran this algorithm for k value 4.
+ 
+ 
+ 
+ 
+ 

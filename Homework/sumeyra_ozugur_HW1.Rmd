@@ -1,0 +1,291 @@
+---
+title: "Homework1"
+output: html_document
+author: "Sümeyra Özuğur"
+---
+
+
+
+### 1)Import “heros_information” dataset from https://www.kaggle.com/claudiodavi/superhero-set
+
+```{r}
+#import data
+mydata = read.csv("C:/Users/asus/Desktop/4.Sınıf/DataScience/sumeyra_ozugur_HW1/heroes_information.csv")  
+head(mydata)
+
+```
+
+### 2)How many male characters that have blue eyes are there?
+
+```{r}
+
+library(dplyr)
+
+
+blue_eyes_male <- mydata %>% 
+     filter(Gender == "Male", Eye.color == "blue") %>% 
+     select(Gender,Eye.color)
+count(blue_eyes_male)
+
+#for (number in blue_eyes_male){
+  #print(number)
+ # length(number)
+#}
+
+```
+
+### 3) Remove bad alignment and answer Q2 again.
+```{r}
+
+    remove_bad_alignment <- mydata %>%
+    filter(Alignment != "bad" & Eye.color=="blue" & Gender=="Male") 
+   
+count(remove_bad_alignment)
+
+
+
+```
+
+### 4)What is the most common race and skin color? Create a summary table
+```{r}
+
+
+most_common_race <- mydata %>% 
+  group_by(Race) %>%
+  filter(Race != "-") %>%
+  summarise('Racee'=n())
+arrange(most_common_race,desc(Racee))
+
+
+
+
+```
+According to this output the most common Race is **Human** .
+
+
+```{r, message=FALSE}
+
+most_common_skincolor <- mydata %>% 
+  group_by(Skin.color) %>%
+   filter(Skin.color != "-") %>%
+  summarise('SkinnColor'= n())
+arrange(most_common_skincolor,desc(SkinnColor))
+
+```
+
+According to this output the most common Skin.color is **green**.
+
+### 5)Find out the mean and standard deviation of height and weight. Find the tallest and shortest heroes.
+
+```{r}
+
+
+mean_and_sd <- mydata %>%
+  #select(Height,Weight) %>%
+  filter(Weight >0 & Height >0) %>%
+  
+  summarise("Mean Weight" =  mean(Weight,na.rm = TRUE),
+            " Mean Height" =mean(Height, na.rm = TRUE),
+            "Standart_Devition_Weight" =sd(Weight,na.rm = TRUE),
+            "Standart_Devition_Height" =sd(Height,na.rm = TRUE)
+           )
+
+            
+  
+mean_and_sd
+
+
+```
+```{r, message=FALSE}
+
+tallest_hero <- mydata %>%
+ group_by(Height,name) %>%
+  select(Height,name)%>%
+  summarise("Height" = min(Height, na.rm = TRUE))
+  
+  
+
+tail(tallest_hero)
+       
+
+
+```
+In this table show us the tallest hero is **Fing Fang Foom**  
+
+
+```{r}
+shortest_hero <- mydata %>%
+ group_by(Height,name) %>%
+  select(Height,name)%>%
+  filter(Height >0)%>%
+  summarise("Height" = min(Height, na.rm = TRUE))
+  
+  
+
+head(shortest_hero)
+
+```
+In this table show us the shortest hero is **Utgard-Loki**.
+
+### 6)Create tibbles showing weight and height for good and bad Marvel heros. Compare their mean and standard
+deviation weight and height.
+```{r}
+#weight and height for good Marvel
+  good_marvel <- mydata %>% 
+  select(Weight,Height,Alignment) %>% 
+  filter(Alignment=="good")  %>%
+  # as_tibble() turns an existing object
+  as_tibble(mydata)
+
+good_marvel
+
+```
+
+
+```{r}
+#weight and height for bad Marvel
+  bad_marvel <- mydata %>% 
+  select(Weight,Height,Alignment) %>% 
+  filter(Alignment=="bad")  %>%
+  # as_tibble() turns an existing object
+  as_tibble(mydata)
+
+bad_marvel
+
+```
+
+
+
+
+```{r}
+# Compare their standard
+
+
+diff_marvels <- mydata %>%
+  select(Weight,Height,Alignment) %>%
+  summarise("sd_height_bad_marvels" = sd(Height[Alignment == "bad"],  na.rm = TRUE), 
+            "sd_height_good_marvels" = sd(Height[Alignment == "good"],  na.rm = TRUE),
+            "dff_sd_height_result" = ( sd_height_good_marvels - sd_height_bad_marvels),
+            "sd_weight_bad_marvels" = sd(Weight[Alignment == "bad"],  na.rm = TRUE), 
+            "sd_weight_good_marvels" = sd(Weight[Alignment == "good"],  na.rm = TRUE),
+            "dff_sd_weight_result" = ( sd_weight_bad_marvels - sd_weight_good_marvels))
+diff_marvels
+```
+
+
+```{r}
+# Compare their mean
+
+diff_marvels <- mydata %>%
+  select(Weight,Height,Alignment) %>%
+  summarise("mean_height_bad_marvels" = mean(Height[Alignment == "bad"],  na.rm = TRUE), 
+            "mean_height_good_marvels" = mean(Height[Alignment == "good"],  na.rm = TRUE),
+            "dff_mean_height_result" = ( mean_height_good_marvels - mean_height_bad_marvels),
+            "mean_weight_bad_marvels" = mean(Weight[Alignment == "bad"],  na.rm = TRUE), 
+            "mean_weight_good_marvels" = mean(Weight[Alignment == "good"],  na.rm = TRUE),
+            "dff_mean_weight_result" = ( mean_weight_bad_marvels - mean_weight_good_marvels))
+
+diff_marvels
+```
+### 7) Import “super_hero_powers” dataset from https://www.kaggle.com/claudiodavi/superhero-setCombine powers and
+information datasets. Give 10 point to each power that is TRUE. Compute the power of each superhero. Write a dplyr
+chain to plot power of female human heros and show differences for alignment. 
+
+```{r}
+super_hero_power = read.csv("C:/Users/asus/Desktop/4.Sınıf/DataScience/sumeyra_ozugur_HW1/super_hero_powers.csv") 
+#super_hero_power
+
+hero_stats <- inner_join(mydata,super_hero_power, c("name"= "hero_names"))
+
+
+
+
+
+```
+
+```{r}
+#
+super_hero_cal <- function(x) {
+  
+  super_power_list <- c()
+  for(i in 1:660) {
+    power = 0
+    for (j in 12:178) {
+      if(x[i, j] == "True") {
+        power = power + 10
+      }
+      else{
+        power= power
+      }
+      
+      
+    }
+    super_power_list <- c(super_power_list, power)
+  }
+  
+  #hero_stats$Power <- super_power_list
+  return(super_power_list)
+}
+
+
+
+```
+
+
+
+```{r}
+hero_stats$power <- super_hero_cal(hero_stats)
+```
+
+
+```{r}
+
+human_female <- hero_stats %>%
+filter(Gender=="Female" & Race =="Human" & Alignment != "-" ) 
+
+
+
+```
+
+
+```{r}
+#install.packages("ggplot2")
+library(ggplot2)
+ggplot(human_female) + geom_count(aes(x = Alignment, y = power), color = "steelblue") +
+  labs(tag = "for Female Humans",
+        title = "Power Scores for Alignments")
+
+```
+
+
+
+
+
+if Alignment  is "good" ,there are more female.
+if Alignment is "neutral", there is the least female.
+Alignment of the most powerful is bad.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

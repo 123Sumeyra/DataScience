@@ -1,0 +1,468 @@
+---
+title: "E-commerce Customer Purchase Intentions"
+output: html_document
+author: "Sümeyra Özuğur"
+---
+170709046
+
+
+
+
+## Required Libraries
+
+```{r, message=FALSE,warning=FALSE}
+library(skimr)
+library(RANN)
+library(randomForest)
+library(fastAdaboost)
+library(gbm)
+library(xgboost)
+library(caretEnsemble)
+library(C50)
+library(earth)
+
+library(mice)#kayıp gözlem 
+library(ggplot2)
+library(lattice)
+library(lava)
+library(purrr)
+library(caret)
+
+library(naivebayes)
+library(rlang)
+library(e1071) 
+library(caTools) 
+```
+
+### 1)Import “online_shoppers_intention.csv” dataset
+
+First I should know my data. I checked Column names, row names. I checked what is in my data, 
+
+
+```{r}
+#import data
+mydata = read.csv("online_shoppers_intention.csv")  
+
+```
+
+
+```{r}
+str(mydata)
+```
+
+The data types  in the dataset are numeric, character, int, logical. 
+
+```{r}
+head(mydata)
+```
+You can also check na by using the mice package.
+```{r}
+sum(is.na(mydata))#0 is there na or not
+#md.pattern(mydata)# is there na or not
+colnames(mydata)
+#row.names(mydata)
+```
+# Data
+
+Actually ,I know this dataset from midterm homework. To remember;
+
+ The dataset consists of users 12330 and there are 18 attributes in the dataset. There is no missing value in this dataset.
+10 of them have Numerical features, rest of them have  Categorical features, and 
+ **The goal of this dataset :** 
+Trying to understand the intentions of online shoppers, Did she/he shop online or not. They also analyzed the shopping intent of different customers. Our response variable is the Revenue variable.
+
+### Numerical features:
+Administrative,Administrative duration, Informational, Informational duration, Product related, Bounce rate,Product related duration
+Exit rate,Page value, Special day
+
+ + **Administrative:**  Number of pages visited by the visitor about account management
+ + **Administrative duration**:
+ Total amount of time (in seconds) spent by the visitor on account management related
+pages
+
+ + **Informational:** Number of pages visited by the visitor about Web site, communication and address information of the shopping site
+
+ + **Informational duration:**
+Total amount of time (in seconds) spent by the visitor on informational pages.
+
+
+ + **Product related:** Number of pages visited by visitor about product related pages
+
+ + **Product related duration:**
+Total amount of time (in seconds) spent by the visitor on product related pages
+
+ + **Bounce rate:** Average bounce rate value of the pages visited by the visitor
+
+ + **Exit rate:** Average exit rate value of the pages visited by the visitor
+ + **Page value:** Average page value of the pages visited by the visitor
+  + **Special day:** Closeness of the site visiting time to a special day
+
+### Categorical features:
+VisitorType,Region, Browser, Operating Systems, TrafficType,
+Weekend, Month, Revenue
+
+ + **OperatingSystems:** Operating system of the visitor
+ + **Browser:** Browser of the visitor
+ + **Region:** Geographic region from which the session has been started by the visitor.
++ **TrafficType:** Traffic source by which the visitor has arrived at the Web site (e.g., banner, SMS, direct)
+ + **VisitorType:** Visitor type as ‘‘New Visitor,’’ ‘‘Returning Visitor,’’ and ‘‘Other’’
+ + **Weekend:** Boolean value indicating whether the date of the visit is weekend
+ + **Month:** Month value of the visit date
++ **Revenue:** Class label indicating whether the visit has been finalized with a transaction
+
+
+
+Firstly; I split it into training(80%) and test(20%)
+By the way, I  set list=F, to prevent returning the result as a list.
+
+
+```{r}
+set.seed(100)
+
+trainRowNumbers <- createDataPartition(mydata$Revenue, p=0.8, list=FALSE)
+
+trainData <- mydata[trainRowNumbers,]
+
+testData <- mydata[-trainRowNumbers,]
+
+x = trainData[, 1:17] #Revenue çıkarıldı
+y= trainData$Revenue #Revenue tutuluyor
+```
+
+
+
+```{r}
+skimmed <- skimr::skim(trainData)
+skimmed[, ]
+anyNA(trainData)
+```
+We can see the column features in more detail. As you see Training data has 9865 rows, and 18 colomns, There is no missing value in the dataset, so there is no missing value  in training set.
+
+
+```{r}
+# One-Hot Encoding
+
+dummies_model <- dummyVars(Revenue ~ ., data=trainData)
+
+trainData_mat <- predict(dummies_model, newdata = trainData)
+
+# # Convert to dataframe
+trainData <- data.frame(trainData_mat)
+
+# # See the structure of the new dataset
+str(trainData)
+```
+
+It was one-hot-encoded to produce new columns for VisitorType, Weekend, and Months. As you see we have 29 columns now.
+```{r}
+preProcess_range_model <- preProcess(trainData, method='range')
+trainData <- predict(preProcess_range_model, newdata = trainData)
+
+apply(trainData[, 1:29],2, FUN=function(x){c('min'=min(x), 'max'=max(x))})
+
+
+trainData$Revenue <- y
+
+trainData$Revenue <- as.factor(trainData$Revenue)  
+class(trainData$Revenue)
+```
+In this chunk,  We normalized the data to have the smallest value 0 and the largest value 
+
+
+# Visualize Your Variables
+
+```{r}
+featurePlot(x = trainData[, 1:10], #1:10
+            y = trainData$Revenue, 
+            plot = "box",
+            strip=strip.custom(par.strip.text=list(cex=.7)),
+            scales = list(y = list(relation="free"), 
+                          x = list(relation="free")))
+```
+
+```{r}
+featurePlot(x = trainData[, 11:20], 
+           y = trainData$Revenue, 
+           plot = "density",
+           strip=strip.custom(par.strip.text=list(cex=.7)),
+           scales = list(x = list(relation="free"), 
+                         y = list(relation="free")))
+```
+  
+```{r}
+featurePlot(x = trainData[, 21:24,28:29], 
+           y = trainData$Revenue, 
+           plot = "box",
+           strip=strip.custom(par.strip.text=list(cex=.7)),
+           scales = list(x = list(relation="free"), 
+                         y = list(relation="free")))
+```
+    
+```{r}
+featurePlot(x = trainData[, 25:27], 
+           y = trainData$Revenue, 
+           plot = "box",
+           strip=strip.custom(par.strip.text=list(cex=.7)),
+           scales = list(x = list(relation="free"), 
+                         y = list(relation="free")))
+```
+  
+  
+  I use box plots and density plots. You can use other plots if you want. Boxplot is easier for me
+
+
+# Training
+
+```{r}
+set.seed(100)
+
+model_knn = train(Revenue ~ ., data=trainData, method='knn')
+```
+
+
+```{r}
+model_knn
+```
+
+Our accuracy value is the highest for K = 9,
+  Kappa  has the highest value for k = 5. 
+
+```{r}
+plot(model_knn, main="Accuracies with knn")
+```
+
+
+
+this  chart show  accuracy based on k values
+
+```{r}
+varimp_knn <- varImp(model_knn)
+plot(varimp_knn, main = "Variable Importance with knn",
+                 check_overlap = TRUE)
+```
+
+
+
+In this chart you will see the order of importance of the columns. As you see PageValues is most important , ExitRates is second important.
+
+# Prediction
+```{r}
+testData$Revenue <- as.factor(testData$Revenue)
+```
+
+
+
+```{r}
+  
+testData3 <- predict(dummies_model, testData)
+
+testData4 <- predict(preProcess_range_model, testData3)
+```
+
+
+
+```{r}
+fitted <- predict(model_knn, testData4)
+
+
+confusionMatrix(reference = testData$Revenue, data = fitted, mode='everything', positive='TRUE')
+
+
+
+```
+
+2094 of our data in TestData4(2.465) were correctly estimated. Accuracy is 0.85, Sensitivity is low(%14).  
+
+# Training other models
+
+```{r}
+
+set.seed(100)
+model_nb = train(Revenue ~ ., data=trainData, method='naive_bayes')
+model_nb
+```
+As you see , trainData has 9865 samples, 29 predictor, 2 classes(FALSE and TRUE) and according to Naive Bayes accuracy is higher for usekernel True value. Kappa is higher for usekernel False value.
+
+```{r, warning=FALSE}
+set.seed(100)
+model_lda = train(Revenue ~ ., data=trainData, method='lda')
+model_lda
+```
+
+According to Linear Discriminant Analysis, accuracy is 88% and Kappa is 42%.
+
+
+
+
+```{r}
+set.seed(100)
+
+model_tree = train(Revenue ~ ., data=trainData, method='rpart')
+model_tree
+
+```
+According to Cart, highest accuracy  is 89% and highest kappa is 54%.
+
+
+
+```{r}
+
+models_compare <- resamples(list(KNN=model_knn, LDA=model_lda, DECISIONTREE=model_tree, NAIVEBAYES=model_nb))
+
+summary(models_compare)
+```
+
+
+```{r}
+# Draw box plots to compare models
+scales <- list(x=list(relation="free"), y=list(relation="free"))
+bwplot(models_compare, scales=scales)
+```
+
+
+
+**The model with the highest accuracy value** is DecisionTree and The model with the lowest accuracy value is knn. By the way The model with the highest kappa value is DecisionTree.
+`
+
+
+```{r}
+
+
+fitted <- predict(model_nb, testData4)
+fitted <- predict(model_lda, testData4)
+fitted <- predict(model_tree, testData4)
+```
+
+
+```{r}
+# Define the training control
+fitControl <- trainControl(
+    method = 'cv',                   # k-fold cross validation
+    number = 10                      # number of folds
+)
+```
+
+
+```{r}
+set.seed(100)
+# Train the model using naive bayes
+model_knn = train(Revenue ~ ., data=trainData, method='knn',
+                  trControl=fitControl)
+model_knn
+```
+According to k-Nearest Neighbors highest accuracy is k=9 for Cross-Valid(10) in TrainData,
+highest Kappa is k=5 . 
+
+
+```{r}
+set.seed(100)
+# Train the model using naive bayes
+model_nb = train(Revenue ~ ., data=trainData, method='naive_bayes',
+                 trControl=fitControl)
+model_nb
+```
+
+According to Naive Bayes highest accuracy is 86% for TRUE value of usekernel in TrainData,
+highest Kappa is 28% for FALSE value of usekernel.
+
+```{r, warning=FALSE}
+set.seed(100)
+# Train the model using lda
+model_lda = train(Revenue ~ ., data=trainData, method='lda',
+                   trControl=fitControl)
+model_lda
+```
+Acording to Linear Discriminant Analysis   accuracy is 88% and kappa is 41% for cross validated(10).
+
+```{r}
+set.seed(100)
+# Train the model using lda
+model_tree = train(Revenue ~ ., data=trainData, method='rpart',
+                    trControl=fitControl)
+model_tree
+```
+Acording to Cart   highest accuracy is 89% and kappa is 54% for cross validated .
+
+
+```{r}
+# Compare model performances using resample()
+models_compare <- resamples(list(KNN=model_knn, LDA=model_lda, DECISIONTREE=model_tree, NAIVEBAYES=model_nb))
+
+# Summary of the models performances
+summary(models_compare)
+
+# Draw box plots to compare models
+scales <- list(x=list(relation="free"), y=list(relation="free"))
+bwplot(models_compare, scales=scales)
+
+```
+
+
+
+
+**After  with cross validation,** our data starts with an accuracy of 0.86,  and starts with a kappa of 0.2 
+
+```{r}
+set.seed(100)
+
+subsets <- c(1,2, 5:8, 18)
+```
+
+ we ordered of importance of the columns with knn before. I analyzed them and thought these columns were more important.
+
+
+```{r}
+ctrl <- rfeControl(functions = rfFuncs,
+                   method = "repeatedcv",
+                   repeats = 1,verbose = FALSE)
+```
+
+
+
+ **For lmProfile:** The best result for the chosen asterisk 7 is given with this variable. Accuracy value of the best result is %90. By the way The time to convert rmd to html has passed 1 hour  so I removed some of the last chunks
+
+
+
+
+**Training ensemble methods**
+
+
+
+
+# Conclusion:
+I could not run some of the last chunks due to the large data and my internet being slow.
+I tried by removing some columns but nothing changed. I added it again to avoid data loss.
+my chunk has been running for about 4 hours, but it doesn't give any results. I would also send my so .rmd file, please check .rmd file out for the last chunks.
+
+
+I have some guesses about these codes.  The highest accuracy is decision tree, lowest accuracy is knn.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
